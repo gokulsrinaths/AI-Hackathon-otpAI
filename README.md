@@ -1,90 +1,64 @@
 # OTPShield AI
 
-## Advanced OTP Security Firewall
-
-OTPShield AI is a mobile application that provides real-time security analysis for OTP (One-Time Password) messages to protect users from phishing and other fraudulent attacks. The application uses AI-powered algorithms to detect potentially malicious OTP requests and blocks them before they can compromise user security.
-
-![OTPShield AI](https://via.placeholder.com/800x400?text=OTPShield+AI)
+An intelligent mobile application designed to protect users from OTP (One-Time Password) fraud by analyzing incoming messages and identifying potentially malicious content.
 
 ## Features
 
-- **Real-time Message Analysis**: Automatically scans incoming SMS messages for OTP codes.
-- **Intelligent Risk Scoring**: Multi-factor analysis to detect phishing attempts.
-- **Trusted Sender Verification**: Maintains a database of trusted banking and service sender IDs.
-- **Detailed Security Reports**: Provides comprehensive security analysis reports.
-- **Location-Based Verification**: Adds an extra layer of security by considering location data.
-- **Historical Analysis**: View past security analyses and blocked attempts.
-- **Customizable Security Settings**: Adjust security sensitivity based on user preference.
+- **Real-time Message Analysis**: Automatically scans incoming messages for OTP codes
+- **Threat Detection**: Uses AI to identify suspicious or fraudulent OTP requests
+- **Visual Indicators**: Clear color-coded system to identify secure, suspicious, and spam messages
+- **Detailed Analysis**: Provides comprehensive breakdown of why a message was flagged
+- **Sleek Modern Interface**: Dark mode UI with intuitive design
 
-## Technology Stack
+## Technologies Used
 
-- React Native with Expo
-- React Navigation for screen management
-- Expo Vector Icons for UI elements
-- Linear Gradient for beautiful UI effects
-- Expo Constants for device information
+- React Native
+- Expo
+- React Navigation
+- Linear Gradient
+- Custom Animations
 
 ## Installation
 
-1. Clone the repository:
-   ```
-   git clone https://github.com/yourusername/otpshield-ai.git
-   cd otpshield-ai
-   ```
+1. Clone the repository
+```bash
+git clone https://github.com/yourusername/otpshield-ai.git
+cd otpshield-ai
+```
 
-2. Install dependencies:
-   ```
-   npm install
-   ```
+2. Install dependencies
+```bash
+npm install
+```
 
-3. Start the development server:
-   ```
-   npm start
-   ```
+3. Start the application
+```bash
+npm start
+```
 
-4. Run on a device or emulator:
-   - Scan the QR code with the Expo Go app (Android) or Camera app (iOS)
-   - Press 'a' to run on Android emulator
-   - Press 'i' to run on iOS simulator
-
-## Demo Mode
-
-The application currently runs in demo mode, which simulates incoming messages and OTP requests. In a production environment, it would integrate with the device's SMS capabilities to analyze real messages.
+4. Scan the QR code with the Expo Go app on your mobile device or run on an emulator
 
 ## Project Structure
 
-```
-otpshield-ai/
-├── assets/               # App icons and images
-├── src/
-│   ├── components/       # Reusable UI components
-│   ├── screens/          # App screens
-│   ├── services/         # Service modules and API handlers
-│   └── utils/            # Utility functions and helpers
-├── App.js                # Main application entry point
-├── app.json              # Expo configuration
-└── package.json          # Project dependencies
-```
+- `/src` - Source code
+  - `/screens` - Main application screens
+  - `/components` - Reusable UI components
+  - `/services` - Business logic services
+  - `/utils` - Utility functions
 
-## Future Enhancements
+## Security Features
 
-- Integration with native SMS listeners for real message processing
-- Machine learning model to improve phishing detection
-- Multi-language support
-- Cloud-based threat intelligence database
-- Bank-specific security rules and policies
-- Two-factor authentication for sensitive operations
+OTPShield AI protects users by analyzing various aspects of incoming messages:
+
+- Sender identification and verification
+- Pattern recognition for fraudulent messages
+- Contextual analysis of message content
+- Risk scoring based on multiple factors
 
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
-## Acknowledgments
+## Contact
 
-- Banking security standards
-- SMS protection guidelines
-- Mobile security best practices
-
----
-
-Made with ❤️ by [Your Name/Team] 
+For questions or feedback, please open an issue in the GitHub repository. 

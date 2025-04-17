@@ -12,20 +12,16 @@ const sampleMessages = [
   'Urgent: Please send your OTP to verify transaction.',
   'ICICIBANK: Your account is being closed. Share OTP to stop.',
   'Your verification code is 123456. Valid for 10 minutes.',
-  'HDFCBNK: OTP for txn of Rs.9999 is 456123. Valid for 5 mins. DO NOT share OTP with anyone.',
+  'HDFCBK: OTP for txn of Rs.9999 is 456123. Valid for 5 mins. DO NOT share OTP with anyone.',
   'FAKEBANK123: Your account will be suspended. Call +91-9876543210 immediately.',
   'SBIBANK: 654321 is your OTP for fund transfer. Do not share with anyone.',
   'Your Amazon order is delayed. Track here: amzn.co/track',
   'AXISBK: 789012 is OTP for your transaction. Valid for 3 mins.',
-  'ALERT: Suspicious login detected. Share OTP to secure your account immediately: 924371',
-  'HDFCBANK: Your account will be suspended. To prevent, click here: tiny.cc/verify',
-  'AMAZON: Your package delivery failed. Reschedule: amzn.co/resched',
-  'Your Uber code is 825741. Use this to verify your account.',
-  'HDFC: 341852 is your NetBanking OTP. DO NOT share it with anyone.',
-  'SBI: Your account has been debited INR 24,999. If not you, share the OTP 651432 to cancel.',
-  'Netflix: Your verification code is 258436. Valid for 5 minutes.',
-  'SWIGGY: Your OTP for order payment is 762431. Valid for 2 minutes.',
-  'YESBNK: 563214 is your OTP for fund transfer of Rs.15,000 to Anil K.'
+  'Your Netflix password was reset. If not you, call +1-800-SCAM-123.',
+  'ALERT: Unusual login detected. Verify with OTP 345678.',
+  'Your PayPal account has been limited. Verify: bit.ly/paypal-verify',
+  'YESBNK: 234567 is your OTP for net banking login.',
+  'ALERT: Rs.49,999 debited from your account. Call if not you: 9876543210'
 ];
 
 // Trusted sender IDs - expanded list

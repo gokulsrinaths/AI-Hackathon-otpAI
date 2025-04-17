@@ -9,12 +9,8 @@ import { MaterialIcons } from '@expo/vector-icons';
 import HomeScreen from './src/screens/HomeScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import MessageService from './src/services/MessageService';
-import PhoneTrustService from './src/services/PhoneTrustService';
 import * as SplashScreen from 'expo-splash-screen';
 import { Animated } from 'react-native';
-import TrustScoreScreen from './src/screens/TrustScoreScreen';
-import CallTrustScoreScreen from './src/screens/CallTrustScoreScreen';
-import SearchScreen from './src/screens/SearchScreen';
 
 // Create navigation components
 const Tab = createBottomTabNavigator();
@@ -25,20 +21,27 @@ const OTPShieldLogo = ({ size = 120 }) => {
   return (
     <View style={[styles.customLogoContainer, { width: size, height: size, borderRadius: size/2 }]}>
       <LinearGradient
-        colors={['#06C167', '#039E53', '#027A40']}
+        colors={['#06C167', '#00A555', '#008a47']}
         style={[styles.customLogoGradient, { width: size-6, height: size-6, borderRadius: (size-6)/2 }]}
       >
-        <MaterialIcons name="shield" size={size*0.55} color="#FFFFFF" />
+        <MaterialIcons name="shield" size={size*0.65} color="#FFFFFF" />
       </LinearGradient>
-      <View style={[styles.customLogoGlow, { width: size+20, height: size+20, borderRadius: (size+20)/2 }]} />
+      <View style={[styles.customLogoGlow, { width: size+30, height: size+30, borderRadius: (size+30)/2 }]} />
     </View>
   );
 };
 
-// Prevent auto-hiding of splash screen until we're ready
+// Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync().catch(() => {
-  console.log('SplashScreen.preventAutoHideAsync encountered an error');
+  /* reloading the app might trigger some race conditions, ignore them */
 });
+
+// Force the splash screen to be visible for a minimum amount of time
+setTimeout(() => {
+  SplashScreen.hideAsync().catch(() => {
+    console.log("Could not hide native splash screen");
+  });
+}, 1000); // Wait for 1 second minimum before allowing the native splash to hide
 
 // Home stack navigator
 const HomeStack = () => {
@@ -50,33 +53,28 @@ const HomeStack = () => {
     >
       <Stack.Screen name="Home" component={HomeScreen} />
       <Stack.Screen name="Settings" component={SettingsScreen} />
-      <Stack.Screen name="TrustScore" component={TrustScoreScreen} />
-      <Stack.Screen name="CallTrustScore" component={CallTrustScoreScreen} />
-      <Stack.Screen name="Search" component={SearchScreen} />
     </Stack.Navigator>
   );
 };
 
 // Main App component
 export default function App() {
-  // State to track whether to show custom splash screen
-  const [appIsReady, setAppIsReady] = useState(false);
+  // State to track whether to show splash screen
   const [showSplash, setShowSplash] = useState(true);
+  const [initComplete, setInitComplete] = useState(false);
   
   // Animation values for splash screen
-  const fadeAnim = React.useRef(new Animated.Value(0)).current; // Start fully transparent
-  const scaleAnim = React.useRef(new Animated.Value(0.9)).current; // Start slightly smaller
+  const fadeAnim = React.useRef(new Animated.Value(1)).current;
+  const scaleAnim = React.useRef(new Animated.Value(1)).current;
   const pulseAnim = React.useRef(new Animated.Value(1)).current;
-  const [countdown, setCountdown] = useState(10); // 10 second countdown
+  const [countdown, setCountdown] = useState(20); // Increased from 10 to 20 second countdown for better visibility
   
   // Initialize the app on mount
   useEffect(() => {
-    async function prepare() {
+    // Function to initialize app data
+    const initializeApp = async () => {
       try {
-        console.log("App initializing...");
-        
-        // Initialize PhoneTrustService
-        await PhoneTrustService.initialize();
+        console.log("App.js: Initializing app and generating messages");
         
         // Clear any existing messages first
         MessageService.clearAllMessages();
@@ -84,97 +82,48 @@ export default function App() {
         // Simulate some initial messages to populate the app on first load
         for (let i = 0; i < 10; i++) {
           const message = MessageService.getRandomMessage();
-          const messageObj = MessageService.addMessageToHistory({
+          MessageService.addMessageToHistory({
             message,
             timestamp: new Date(Date.now() - i * 60000) // Space out timestamps
           });
-          
-          // Extract sender and update trust score
-          const senderId = extractSenderId(message);
-          if (senderId) {
-            const analysisResult = MessageService.analyzeMessage(message, {
-              deviceId: Constants.installationId || 'unknown-device',
-              senderId
-            });
-            
-            // Update trust score based on analysis
-            await PhoneTrustService.updateScoreWithMessage(senderId, analysisResult);
-          }
         }
         
-        console.log("Generated initial messages:", MessageService.getMessageHistory().length);
+        console.log("App.js: Generated initial messages:", MessageService.getMessageHistory().length);
         
-        // Simulate some additional delay to ensure splash screen is visible
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Mark initialization as complete
+        setInitComplete(true);
       } catch (e) {
         console.warn("Error during app initialization:", e);
-      } finally {
-        // Mark app as ready
-        setAppIsReady(true);
+        setInitComplete(true); // Still mark as complete to avoid getting stuck
       }
-    }
-
-    prepare();
+    };
+    
+    // Run initialization
+    initializeApp();
   }, []);
   
-  // Helper function to extract sender ID from a message
-  const extractSenderId = (message) => {
-    if (!message) return null;
-    
-    // Look for sender ID pattern like "HDFCBANK:" at start of message
-    const match = message.match(/^([A-Z0-9-]+):/i);
-    if (match && match[1]) {
-      return match[1].toUpperCase();
-    }
-    return null;
-  };
-  
-  // Handle app becoming ready
-  useEffect(() => {
-    if (appIsReady) {
-      // Fade in our custom splash screen
-      Animated.parallel([
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-        Animated.timing(scaleAnim, {
-          toValue: 1,
-          duration: 800,
-          useNativeDriver: true,
-        })
-      ]).start(async () => {
-        // Hide the native Expo splash screen now that our custom one is visible
-        await SplashScreen.hideAsync().catch(() => {
-          console.log('SplashScreen.hideAsync encountered an error');
-        });
-      });
-    }
-  }, [appIsReady]);
-  
-  // Create pulsing animation for logo
+  // Create pulsing animation for logo with stronger effect
   useEffect(() => {
     // Create a pulsing animation for the logo
     Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
-          toValue: 1.08,
-          duration: 1000,
+          toValue: 1.15, // Increased from 1.08 for more noticeable pulse
+          duration: 800, // Faster animation
           useNativeDriver: true,
         }),
         Animated.timing(pulseAnim, {
           toValue: 1,
-          duration: 1000,
+          duration: 800, // Faster animation
           useNativeDriver: true,
         })
       ])
     ).start();
   }, []);
-
+  
   // Handle countdown and splash screen dismissal
   useEffect(() => {
-    if (!appIsReady) return; // Wait until initialization is complete
+    if (!initComplete) return; // Wait until initialization is complete
     
     // Create countdown timer
     const timer = setInterval(() => {
@@ -197,6 +146,7 @@ export default function App() {
           ]).start(() => {
             // After animation completes, hide splash screen
             setShowSplash(false);
+            SplashScreen.hideAsync();
           });
         }
         return next;
@@ -204,21 +154,22 @@ export default function App() {
     }, 1000);
     
     return () => clearInterval(timer);
-  }, [appIsReady]);
+  }, [initComplete]);
 
   // Render splash screen
   const renderSplashScreen = () => {
-  return (
+    return (
       <Animated.View 
         style={[
           styles.splashContainer,
           {
             opacity: fadeAnim,
-            transform: [{ scale: scaleAnim }]
+            transform: [{ scale: scaleAnim }],
+            zIndex: 9999, // Ensure it's on top of everything
           }
         ]}
       >
-      <LinearGradient
+        <LinearGradient
           colors={['#121212', '#1a1a1a', '#242424']}
           style={styles.splashBackground}
         />
@@ -229,12 +180,12 @@ export default function App() {
               { transform: [{ scale: pulseAnim }] }
             ]}
           >
-            <OTPShieldLogo size={160} />
+            <OTPShieldLogo size={200} /> {/* Increased size from 160 to 200 */}
           </Animated.View>
           <Text style={styles.splashTitle}>OTPShield AI</Text>
           <Text style={styles.splashSubtitle}>Intelligent OTP Protection</Text>
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="small" color="#06C167" />
+            <ActivityIndicator size="large" color="#06C167" /> {/* Changed from small to large */}
             <Text style={styles.loadingText}>Starting application... {countdown}s</Text>
           </View>
         </View>
@@ -265,8 +216,6 @@ export default function App() {
                 iconName = 'shield';
               } else if (route.name === 'Settings') {
                 iconName = 'settings';
-              } else if (route.name === 'SearchTab') {
-                iconName = 'search';
               }
               return <MaterialIcons name={iconName} size={size} color={color} />;
             },
@@ -290,11 +239,6 @@ export default function App() {
             options={{ tabBarLabel: 'Shield' }}
           />
           <Tab.Screen 
-            name="SearchTab" 
-            component={SearchScreen} 
-            options={{ tabBarLabel: 'Search' }}
-          />
-          <Tab.Screen 
             name="Settings" 
             component={SettingsScreen} 
           />
@@ -303,15 +247,10 @@ export default function App() {
     );
   };
 
-  // If app is not ready yet, show an empty view (native splash screen is still visible)
-  if (!appIsReady) {
-    return null;
-  }
-
   // Main render
   return (
     <>
-      <StatusBar barStyle="light-content" />
+      <StatusBar barStyle="light-content" backgroundColor="#121212" />
       {showSplash ? renderSplashScreen() : renderMainApp()}
     </>
   );
@@ -327,6 +266,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 10,
+    backgroundColor: '#121212', // Ensure there's a background color
   },
   splashBackground: {
     ...StyleSheet.absoluteFillObject,
@@ -339,6 +279,11 @@ const styles = StyleSheet.create({
     marginBottom: 30,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#06C167',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    elevation: 20,
   },
   // Custom logo styles
   customLogoContainer: {
@@ -346,9 +291,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#242424',
-    borderWidth: 3,
-    borderColor: '#333333',
-    elevation: 15,
+    borderWidth: 4, // Increased from 3
+    borderColor: '#06C167', // Changed to match green accent
+    elevation: 20, // Increased from 15
+    shadowColor: '#06C167',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 15,
   },
   customLogoGradient: {
     justifyContent: 'center',
@@ -356,20 +305,23 @@ const styles = StyleSheet.create({
   },
   customLogoGlow: {
     position: 'absolute',
-    borderWidth: 2,
-    borderColor: 'rgba(6, 193, 103, 0.3)',
+    borderWidth: 3, // Increased from 2
+    borderColor: 'rgba(6, 193, 103, 0.5)', // Increased opacity from 0.3
     backgroundColor: 'transparent',
-    top: -10,
-    left: -10,
+    top: -15, // Adjusted position
+    left: -15, // Adjusted position
   },
   splashTitle: {
     fontSize: 36,
     fontWeight: 'bold',
     color: '#FFFFFF',
     marginBottom: 10,
+    textShadowColor: '#06C167',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 10,
   },
   splashSubtitle: {
-    fontSize: 16,
+    fontSize: 18, // Increased from 16
     color: '#BBBBBB',
     marginBottom: 50,
   },
@@ -380,6 +332,7 @@ const styles = StyleSheet.create({
   loadingText: {
     color: '#BBBBBB',
     marginLeft: 10,
-    fontSize: 14,
+    fontSize: 16, // Increased from 14
+    fontWeight: 'bold', // Added bold
   },
 }); 

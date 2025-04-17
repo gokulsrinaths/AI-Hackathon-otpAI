@@ -21,10 +21,7 @@ import AnalysisResult from '../components/AnalysisResult';
 import MessageService from '../services/MessageService';
 import Constants from 'expo-constants';
 import { useFocusEffect } from '@react-navigation/native';
-import PhoneTrustService from '../services/PhoneTrustService';
-import SenderFeedbackModal from '../components/SenderFeedbackModal';
-import CallFeedbackModal from '../components/CallFeedbackModal';
-import CallTrustService from '../services/CallTrustService';
+import * as Location from 'expo-location';
 
 // Custom logo component that doesn't require external images
 const OTPShieldLogo = ({ size = 48 }) => {
@@ -41,7 +38,7 @@ const OTPShieldLogo = ({ size = 48 }) => {
   );
 };
 
-const HomeScreen = ({ navigation, route }) => {
+const HomeScreen = ({ navigation }) => {
   // State variables
   const [messages, setMessages] = useState([]);
   const [selectedMessage, setSelectedMessage] = useState(null);
@@ -62,38 +59,8 @@ const HomeScreen = ({ navigation, route }) => {
   // Message animations map to store animation values for each message
   const messageAnimations = useRef(new Map()).current;
   
-  // Add these state variables inside the HomeScreen component function declaration, with the other useState declarations
-  const [callFeedbackModalVisible, setCallFeedbackModalVisible] = useState(false);
-  const [currentCallFeedbackNumber, setCurrentCallFeedbackNumber] = useState(null);
-  const [callCooldownInfo, setCallCooldownInfo] = useState(null);
-  
-  // Check for navigation parameters
-  useEffect(() => {
-    if (route.params?.showFeedbackModal && route.params?.feedbackSender) {
-      // Show feedback modal for the specified sender
-      handleShowFeedbackModal(route.params.feedbackSender);
-      
-      // Clear the parameters to prevent showing the modal again on navigation events
-      navigation.setParams({ showFeedbackModal: undefined, feedbackSender: undefined });
-    }
-  }, [route.params]);
-  
-  // Initialize services
-  useEffect(() => {
-    const initServices = async () => {
-      try {
-        // Initialize the PhoneTrustService
-        await PhoneTrustService.initialize();
-        
-        // Call any other initialization you already have
-        showMockMessages();
-      } catch (error) {
-        console.error('Error initializing services:', error);
-      }
-    };
-    
-    initServices();
-  }, []);
+  // Trusted sender IDs
+  const trustedSenders = ['HDFCBK', 'ICICIBNK', 'SBIBANK', 'AXISBK', 'YESBNK'];
   
   // Initialize
   useEffect(() => {
@@ -110,6 +77,15 @@ const HomeScreen = ({ navigation, route }) => {
     
     // Start the sequential message loading with 5-second interval
     startSequentialMessageLoading();
+    
+    // Load message history
+    const history = MessageService.getMessageHistory();
+    setAnalysisHistory(history);
+    
+    // Set the most recent message
+    if (history.length > 0) {
+      setSelectedMessage(history[0]);
+    }
     
     return () => {
       // Clear intervals when component unmounts
@@ -412,83 +388,66 @@ const HomeScreen = ({ navigation, route }) => {
     setAnalysisResult(initialResult);
     setShowAnalysisModal(true);
     
-    const startAnalysis = async () => {
-      try {
-        // Step 1: Extract OTP (500ms)
+    // Step 1: Extract OTP (500ms)
+    setTimeout(() => {
+      const otp = message.message.match(/\b(\d{4,8})\b/)?.[1];
+      const step1Result = {
+        ...initialResult,
+        step: 'extracting',
+        progress: 0.2,
+        otp,
+        currentStep: otp ? `OTP code ${otp} extracted` : 'No OTP found in message'
+      };
+      setAnalysisResult(step1Result);
+      
+      // Step 2: Check sender against database (700ms more)
+      setTimeout(() => {
+        const senderId = message.message.match(/^([A-Z0-9-]+):/i)?.[1] || 'Unknown';
+        const isTrustedSender = trustedSenders.includes(senderId);
+        
+        const step2Result = {
+          ...step1Result,
+          step: 'checking_sender',
+          progress: 0.5,
+          senderId,
+          isTrustedSender,
+          currentStep: `Sender ${senderId} ${isTrustedSender ? 'verified in trusted database' : 'not found in trusted database'}`
+        };
+        setAnalysisResult(step2Result);
+        
+        // Step 3: Analyze message content (800ms more)
         setTimeout(() => {
-          const otp = message.message.match(/\b(\d{4,8})\b/)?.[1];
-          const step1Result = {
-            ...initialResult,
-            step: 'extracting',
-            progress: 0.2,
-            otp,
-            currentStep: otp ? `OTP code ${otp} extracted` : 'No OTP found in message'
-          };
-          setAnalysisResult(step1Result);
+          // Call message service to complete analysis
+          const finalResult = MessageService.analyzeMessage(message.message, {
+            deviceId,
+            senderId
+          });
           
-          // Step 2: Check sender against database (700ms more)
-          setTimeout(() => {
-            const senderId = message.message.match(/^([A-Z0-9-]+):/i)?.[1] || 'Unknown';
-            const isTrustedSender = MessageService.trustedSenders.includes(senderId);
-            
-            const step2Result = {
-              ...step1Result,
-              step: 'checking_sender',
-              progress: 0.5,
-              senderId,
-              isTrustedSender,
-              currentStep: `Sender ${senderId} ${isTrustedSender ? 'verified in trusted database' : 'not found in trusted database'}`
-            };
-            setAnalysisResult(step2Result);
-            
-            // Step 3: Analyze message content (800ms more)
-            setTimeout(async () => {
-              // Call message service to complete analysis
-              const finalResult = MessageService.analyzeMessage(message.message, {
-                deviceId,
-                senderId
-              });
-              
-              // Update message with analyzed flag
-              const updatedMessages = messages.map(msg => 
-                msg.id === message.id 
-                  ? { ...msg, analyzed: true, isBlocked: finalResult.isBlocked }
-                  : msg
-              );
-              setMessages(updatedMessages);
-              
-              // Add to history
-              setAnalysisHistory(prevHistory => [finalResult, ...prevHistory].slice(0, 10));
-              
-              // Update final result with completed analysis
-              setAnalysisResult({
-                ...finalResult,
-                step: 'completed',
-                progress: 1,
-                currentStep: finalResult.isBlocked ? 
-                  'Verification complete - OTP blocked' : 
-                  'Verification complete - OTP verified safe'
-              });
-              
-              // Update the trust score for this sender
-              if (finalResult.senderId) {
-                await PhoneTrustService.updateScoreWithMessage(
-                  finalResult.senderId, 
-                  finalResult
-                );
-              }
-              
-              setIsLoading(false);
-            }, 800);
-          }, 700);
-        }, 500);
-      } catch (error) {
-        console.error('Analysis error:', error);
-        setIsLoading(false);
-      }
-    };
-    
-    startAnalysis();
+          // Update message with analyzed flag
+          const updatedMessages = messages.map(msg => 
+            msg.id === message.id 
+              ? { ...msg, analyzed: true, isBlocked: finalResult.isBlocked }
+              : msg
+          );
+          setMessages(updatedMessages);
+          
+          // Add to history
+          setAnalysisHistory(prevHistory => [finalResult, ...prevHistory].slice(0, 10));
+          
+          // Update final result with completed analysis
+          setAnalysisResult({
+            ...finalResult,
+            step: 'completed',
+            progress: 1,
+            currentStep: finalResult.isBlocked ? 
+              'Verification complete - OTP blocked' : 
+              'Verification complete - OTP verified safe'
+          });
+          
+          setIsLoading(false);
+        }, 800);
+      }, 700);
+    }, 500);
   };
   
   // Select a message from history
@@ -590,115 +549,65 @@ const HomeScreen = ({ navigation, route }) => {
     }
     return messageAnimations.get(messageId);
   };
-  
-  // Add this state for feedback modal
-  const [feedbackModalVisible, setFeedbackModalVisible] = useState(false);
-  const [currentFeedbackSender, setCurrentFeedbackSender] = useState(null);
-  
-  // Function to show the feedback modal
-  const handleShowFeedbackModal = (senderId) => {
-    // Set the current sender and show the modal
-    setCurrentFeedbackSender(senderId);
-    setFeedbackModalVisible(true);
-  };
-  
-  // Function to handle trust score badge press
-  const handleTrustScorePress = (senderId) => {
-    // Navigate to trust score screen
-    navigation.navigate('TrustScore', { senderId });
-  };
-  
-  // Function to submit feedback
-  const handleSubmitFeedback = async (senderId, feedbackType) => {
+
+  // Simulate OTP request analysis
+  const analyzeOtpRequest = async () => {
+    setIsLoading(true);
+    
+    // Request location permission
+    let locationRiskFlag = false;
     try {
-      await PhoneTrustService.recordUserFeedback(senderId, feedbackType);
-      console.log(`Recorded ${feedbackType} feedback for ${senderId}`);
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === 'granted') {
+        // Simulate location risk (random for demo)
+        locationRiskFlag = Math.random() > 0.5;
+      }
     } catch (error) {
-      console.error('Error submitting feedback:', error);
+      console.log('Error getting location:', error);
+      locationRiskFlag = true; // Consider it risky if we can't get location
     }
-  };
-  
-  // Add this effect to check for navigation parameters for call feedback
-  useEffect(() => {
-    // Check for call feedback modal parameters
-    if (route?.params?.showCallFeedbackModal && route?.params?.feedbackPhoneNumber) {
-      // Show call feedback modal
-      handleShowCallFeedbackModal(route.params.feedbackPhoneNumber);
+    
+    // Simulate processing delay
+    setTimeout(() => {
+      // Generate random values for simulation
+      const requestFrequency = Math.floor(Math.random() * 5) + 1; // 1-5
+      const senderId = getRandomSender();
+      const isTrustedSender = trustedSenders.includes(senderId);
       
-      // Clear parameters to avoid repeatedly showing the modal
-      navigation.setParams({
-        showCallFeedbackModal: undefined,
-        feedbackPhoneNumber: undefined
+      // Calculate risk score (0.0 to 1.0)
+      let riskScore = (
+        (requestFrequency / 5) * 0.4 + 
+        (locationRiskFlag ? 0.3 : 0) + 
+        (!isTrustedSender ? 0.3 : 0)
+      );
+      
+      // Round to 2 decimal places
+      riskScore = Math.round(riskScore * 100) / 100;
+      
+      // Determine if OTP should be blocked
+      const isBlocked = riskScore > 0.5 || !isTrustedSender;
+      
+      // Set analysis result
+      setAnalysisResult({
+        requestFrequency,
+        locationRiskFlag,
+        deviceId,
+        senderId,
+        isTrustedSender,
+        riskScore,
+        isBlocked
       });
-    }
-  }, [route?.params]);
-  
-  // Add this handler function to show the call feedback modal
-  const handleShowCallFeedbackModal = async (phoneNumber) => {
-    // Normalize the phone number
-    const normalizedNumber = phoneNumber.replace(/\D/g, '');
-    
-    // Check if user can rate this number (due to rate limiting)
-    const canRate = await CallTrustService.canUserRateNumber('default_user', normalizedNumber);
-    
-    if (!canRate.allowed) {
-      // User recently rated this number - show cooldown info
-      setCallCooldownInfo({
-        active: true,
-        daysRemaining: canRate.cooldownRemaining,
-        message: canRate.message
-      });
-    } else {
-      setCallCooldownInfo(null);
-    }
-    
-    // Set the current number and show modal
-    setCurrentCallFeedbackNumber(normalizedNumber);
-    setCallFeedbackModalVisible(true);
+      
+      setIsLoading(false);
+    }, 1500); // 1.5 second delay to simulate processing
   };
-  
-  // Add this handler function to submit call feedback
-  const handleSubmitCallFeedback = async (phoneNumber, feedbackType) => {
-    try {
-      await CallTrustService.recordUserFeedback(
-        phoneNumber, 
-        feedbackType,
-        'default_user' // In production, use a real user identifier
-      );
-      
-      console.log(`Recorded ${feedbackType} call feedback for ${phoneNumber}`);
-      
-      // Show success message to user
-      Alert.alert(
-        "Feedback Recorded",
-        "Thank you for helping improve the safety of our community.",
-        [{ text: "OK" }]
-      );
-      
-    } catch (error) {
-      console.error('Error submitting call feedback:', error);
-      
-      // Show error message to user
-      Alert.alert(
-        "Error",
-        "There was a problem recording your feedback. Please try again later.",
-        [{ text: "OK" }]
-      );
-    }
+
+  // Format timestamp
+  const formatTime = (timestamp) => {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
-  
-  // Add this to the JSX return statement, right before the closing tag of the parent component
-  {/* Call Feedback Modal */}
-  <CallFeedbackModal 
-    isVisible={callFeedbackModalVisible}
-    phoneNumber={currentCallFeedbackNumber}
-    callDuration={0} // For manually initiated ratings, there's no call duration
-    callTimestamp={null} // For manually initiated ratings, there's no call timestamp
-    onClose={() => setCallFeedbackModalVisible(false)}
-    onSubmitFeedback={handleSubmitCallFeedback}
-    cooldownInfo={callCooldownInfo}
-  />
-  
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#000000" />
@@ -920,14 +829,6 @@ const HomeScreen = ({ navigation, route }) => {
           </View>
         </View>
       )}
-      
-      {/* Feedback Modal */}
-      <SenderFeedbackModal 
-        isVisible={feedbackModalVisible}
-        sender={currentFeedbackSender}
-        onClose={() => setFeedbackModalVisible(false)}
-        onSubmitFeedback={handleSubmitFeedback}
-      />
     </SafeAreaView>
   );
 };

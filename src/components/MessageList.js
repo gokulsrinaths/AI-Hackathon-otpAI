@@ -1,63 +1,33 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ScrollView } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { formatDateTime } from '../utils/helpers';
-import MessageItem from './MessageItem';
-import SenderFeedbackModal from './SenderFeedbackModal';
-import PhoneTrustService from '../services/PhoneTrustService';
+
+// Simplified message item
+const SimpleMessageItem = ({ message, onSelect }) => {
+  return (
+    <TouchableOpacity 
+      style={styles.messageItem}
+      onPress={() => onSelect(message)}
+    >
+      <Text style={styles.timestamp}>{formatDateTime(message.timestamp)}</Text>
+      <Text style={styles.messageText}>{message.message}</Text>
+      <View style={styles.buttonContainer}>
+        <TouchableOpacity 
+          style={styles.analyzeButton}
+          onPress={() => onSelect(message)}
+        >
+          <MaterialIcons name="security" size={12} color="#fff" />
+          <Text style={styles.analyzeButtonText}>Verify Message</Text>
+        </TouchableOpacity>
+      </View>
+    </TouchableOpacity>
+  );
+};
 
 // The main MessageList component
-const MessageList = ({ messages, onSelectMessage, onRefresh, refreshing, onTrustScorePress }) => {
+const MessageList = ({ messages, onSelectMessage, onRefresh, refreshing }) => {
   console.log(`MessageList rendering with ${messages ? messages.length : 0} messages`);
-  
-  // State for feedback modal
-  const [feedbackModalVisible, setFeedbackModalVisible] = useState(false);
-  const [currentSender, setCurrentSender] = useState(null);
-  const [processedMessageCount, setProcessedMessageCount] = useState(0);
-
-  // Check if we should prompt for feedback after every 5th message
-  useEffect(() => {
-    // Skip if we're already showing the modal
-    if (feedbackModalVisible) return;
-    
-    // Only count new messages
-    if (messages && messages.length > processedMessageCount) {
-      // Update the new count of processed messages
-      setProcessedMessageCount(messages.length);
-      
-      // If we've hit a multiple of 5, show the feedback modal for the latest message
-      if (messages.length % 5 === 0 && messages.length > 0) {
-        // Get the latest message and extract sender
-        const latestMessage = messages[0]; // Assuming messages are sorted newest first
-        const senderId = latestMessage.senderId || extractSenderId(latestMessage.message) || 'unknown';
-        setCurrentSender(senderId);
-        setFeedbackModalVisible(true);
-      }
-    }
-  }, [messages, processedMessageCount, feedbackModalVisible]);
-
-  // Extract sender ID from message text
-  const extractSenderId = (messageText) => {
-    if (!messageText) return null;
-    const match = messageText.match(/^([A-Z0-9-]+):/i);
-    return match && match[1] ? match[1] : null;
-  };
-  
-  // Handle trust score badge press - show feedback modal
-  const handleTrustScorePress = (senderId) => {
-    setCurrentSender(senderId);
-    setFeedbackModalVisible(true);
-  };
-  
-  // Submit user feedback
-  const handleSubmitFeedback = async (senderId, feedbackType) => {
-    try {
-      await PhoneTrustService.recordUserFeedback(senderId, feedbackType);
-      console.log(`Recorded ${feedbackType} feedback for ${senderId}`);
-    } catch (error) {
-      console.error('Error submitting feedback:', error);
-    }
-  };
   
   if (!messages || messages.length === 0) {
     return (
@@ -74,28 +44,17 @@ const MessageList = ({ messages, onSelectMessage, onRefresh, refreshing, onTrust
     );
   }
   
-  // Render message list with individual MessageItem components
+  // Render a simpler message list component
   return (
-    <>
-      <ScrollView style={styles.list}>
-        {messages.map((msg) => (
-          <MessageItem 
-            key={msg.id} 
-            message={msg} 
-            onAnalyze={onSelectMessage}
-            onTrustScorePress={onTrustScorePress}
-          />
-        ))}
-      </ScrollView>
-      
-      {/* Feedback Modal */}
-      <SenderFeedbackModal 
-        isVisible={feedbackModalVisible}
-        sender={currentSender}
-        onClose={() => setFeedbackModalVisible(false)}
-        onSubmitFeedback={handleSubmitFeedback}
-      />
-    </>
+    <ScrollView style={styles.list}>
+      {messages.map((msg) => (
+        <SimpleMessageItem 
+          key={msg.id} 
+          message={msg} 
+          onSelect={onSelectMessage} 
+        />
+      ))}
+    </ScrollView>
   );
 };
 
@@ -114,6 +73,42 @@ const styles = StyleSheet.create({
     color: '#666',
     fontSize: 16,
     marginTop: 10,
+  },
+  messageItem: {
+    backgroundColor: '#2a2a2a',
+    borderRadius: 8,
+    padding: 15,
+    marginBottom: 15,
+    borderLeftWidth: 3,
+    borderLeftColor: '#fdbb2d',
+  },
+  timestamp: {
+    color: '#aaa',
+    fontSize: 12,
+    marginBottom: 8,
+  },
+  messageText: {
+    color: '#fff',
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 10,
+  },
+  buttonContainer: {
+    alignItems: 'flex-end',
+  },
+  analyzeButton: {
+    backgroundColor: '#1a2a6c',
+    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  analyzeButtonText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 'bold',
+    marginLeft: 4,
   },
   retryButton: {
     marginTop: 20,

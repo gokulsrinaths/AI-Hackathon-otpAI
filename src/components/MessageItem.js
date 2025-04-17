@@ -1,61 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { formatDateTime } from '../utils/helpers';
-import TrustScoreBadge from './TrustScoreBadge';
-import PhoneTrustService from '../services/PhoneTrustService';
 
-const MessageItem = ({ message, onAnalyze, onTrustScorePress }) => {
-  const [trustScore, setTrustScore] = useState(null);
-  
-  // Get sender ID - either from the message analysis or extract from message text
-  const senderId = message.senderId || extractSenderId(message.message) || 'unknown';
-  
-  // Fetch trust score for this sender
-  useEffect(() => {
-    const fetchTrustScore = async () => {
-      try {
-        const score = await PhoneTrustService.getTrustScore(senderId);
-        setTrustScore(score);
-      } catch (error) {
-        console.log('Error fetching trust score:', error);
-      }
-    };
-    
-    fetchTrustScore();
-  }, [senderId]);
-  
-  // Extract sender ID from message if not provided directly
-  function extractSenderId(messageText) {
-    if (!messageText) return null;
-    const match = messageText.match(/^([A-Z0-9-]+):/i);
-    return match && match[1] ? match[1] : null;
-  }
-  
-  // Handle pressing the trust score badge
-  const handleTrustScorePress = () => {
-    if (onTrustScorePress && trustScore) {
-      onTrustScorePress(senderId, trustScore);
-    }
-  };
-  
+const MessageItem = ({ message, onAnalyze }) => {
   return (
     <View style={styles.messageContainer}>
       <View style={styles.messageHeader}>
-        <View style={styles.senderInfo}>
-          <Text style={styles.timestamp}>{formatDateTime(message.timestamp)}</Text>
-          {senderId && (
-            <View style={styles.senderRow}>
-              <Text style={styles.senderId}>{senderId}</Text>
-              {trustScore && (
-                <TrustScoreBadge 
-                  trustScore={trustScore} 
-                  onPress={handleTrustScorePress}
-                />
-              )}
-            </View>
-          )}
-        </View>
+        <Text style={styles.timestamp}>{formatDateTime(message.timestamp)}</Text>
         <TouchableOpacity 
           style={styles.analyzeButton}
           onPress={() => onAnalyze(message)}
@@ -101,27 +53,12 @@ const styles = StyleSheet.create({
   messageHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start', // Changed from center to allow for multi-line sender info
+    alignItems: 'center',
     marginBottom: 8,
-  },
-  senderInfo: {
-    flex: 1,
   },
   timestamp: {
     color: '#aaa',
     fontSize: 12,
-    marginBottom: 4,
-  },
-  senderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-  },
-  senderId: {
-    color: '#F6B000', // Amber color for sender ID
-    fontSize: 13,
-    fontWeight: 'bold',
-    marginRight: 6,
   },
   analyzeButton: {
     flexDirection: 'row',
@@ -130,7 +67,6 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     paddingHorizontal: 8,
     borderRadius: 4,
-    marginLeft: 8,
   },
   analyzeText: {
     color: '#fff',
